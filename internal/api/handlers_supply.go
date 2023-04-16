@@ -152,17 +152,40 @@ func (app *application) SupplyTest(w http.ResponseWriter, r *http.Request){
 		return
 	}
 
-	res, err := app.models.Supplies.GetSupplyAmount(int64(barcode), fromTime, toTime)
+	res, err := app.models.Supplies.GetSupplyAmount1(int64(barcode), fromTime, toTime)
 
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	// fmt.Println(res)
 
-	err = helpers.WriteJSON(w, http.StatusOK, helpers.Enveleope{"": res}, nil)
+
+	totalQuantity,totalRev ,err := app.models.Sale.GetSalesAmount(int64(barcode), fromTime, toTime)
+	
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	totalCost := NewSolution(res,totalQuantity)
+	totalProfit := totalRev - totalCost 
+	err = helpers.WriteJSON(w, http.StatusOK, helpers.Enveleope{"barcode":barcode,"quantity":totalQuantity,"revenue":totalRev,"netProfit":totalProfit}, nil)
 	if err != nil{
 		fmt.Println(err)
 		return
 	}
+
 }
+
+func NewSolution(supplies []data.Output,totalQuantity int64)int64{
+	var totalCost int64 = 0
+	for i := 0;i < len(supplies);i++{
+		if supplies[i].Running_Qty >= totalQuantity{
+			totalCost = supplies[i].Running_Cost - (supplies[i].Running_Qty - totalQuantity)* supplies[i].Price
+		}
+	}
+	if totalCost == 0{
+		totalCost = supplies[len(supplies)-1].Running_Cost
+	}
+	return totalCost
+}
+
