@@ -16,7 +16,11 @@ import (
 type config struct {
 	port int
 	db   struct {
-		dsn string
+		host     string
+		port     int
+		password string
+		user     string
+		dbname   string
 	}
 }
 
@@ -28,19 +32,23 @@ type application struct {
 func configure() config {
 	var cfg config
 	flag.IntVar(&cfg.port, "port", 4000, "indicate the port that server will be running on")
+	flag.StringVar(&cfg.db.host, "dbhost", "localhost", "indicate host of psql database")
+	flag.IntVar(&cfg.db.port, "dbport", 5432, "indicate port of psql database")
+	flag.StringVar(&cfg.db.host, "dbuser", "hiidoskd", "indicate user of psql database")
+	flag.StringVar(&cfg.db.host, "dbname", "umag", "indicate database name of psql database")
+	flag.StringVar(&cfg.db.host, "password", "", "indicate database password of psql database")
+
 	//flag.StringVar(&cfg.db.dsn, "dsn", "postgres://hiidoskd:@localhost:5432/umag", "")
 	flag.Parse()
-	
-	cfg.db.dsn =  "host=localhost port=5432 user=hiidoskd dbname=umag sslmode=disable"
+
 	return cfg
 }
 
 func StartAndConfigure() {
 	cfg := configure()
 
-	
 	db, err := openDB(cfg)
-	if err != nil{
+	if err != nil {
 		log.Fatal(err)
 	}
 
@@ -48,8 +56,8 @@ func StartAndConfigure() {
 	app := application{
 		config: cfg,
 		models: data.NewModels(db),
-}
-	
+	}
+
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", app.config.port),
 		Handler:      app.routes(),
@@ -63,8 +71,9 @@ func StartAndConfigure() {
 
 }
 
+// "host=localhost port=5432 user=hiidoskd dbname=umag sslmode=disable"
 func openDB(cfg config) (*sql.DB, error) {
-	db, err := sql.Open("postgres", cfg.db.dsn)
+	db, err := sql.Open("postgres", fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s  sslmode=disable", cfg.db.host, cfg.db.port, cfg.db.user, cfg.db.password, cfg.db.dbname))
 	if err != nil {
 		return nil, err
 	}
