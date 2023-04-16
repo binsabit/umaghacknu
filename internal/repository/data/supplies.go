@@ -18,6 +18,8 @@ type Supply struct {
 type Output struct{
 	Quantity int64
 	Price int64
+	Running_Qty int64
+	Running_Cost int64
 }
 
 type SupplyModel struct {
@@ -161,6 +163,31 @@ func (s SupplyModel) GetSupplyAmount(barcode int64, fromTime, toTime time.Time)(
 	for rows.Next(){
 		var temp Output
 		err = rows.Scan(&temp.Quantity,&temp.Price)
+		if err != nil {
+			return nil, err
+		}
+		// fmt.Println(temp)
+		result = append(result, temp)
+	}
+	// fmt.Println(result)
+
+	return result,nil
+}
+
+
+func (s SupplyModel) GetSupplyAmount1(barcode int64, fromTime, toTime time.Time)([]Output,error){
+	query := `select quantity, price, running_qty, running_cost from total_cost 
+	where barcode = $1 and supply_time between $2 and $3;`
+
+	
+	result := []Output{}
+	rows, err := s.DB.Query(query,barcode,fromTime,toTime)
+	if err != nil{
+		return nil,err
+	}
+	for rows.Next(){
+		var temp Output
+		err = rows.Scan(&temp.Quantity,&temp.Price,&temp.Running_Qty,&temp.Running_Cost)
 		if err != nil {
 			return nil, err
 		}
