@@ -22,10 +22,10 @@ type SaleModel struct {
 func (s SaleModel) Insert(sale *Sale) (int64, error) {
 	query := `
 		INSERT INTO sale (barcode, quantity, price, sale_time)
-		VALUES ($1,$2,$3 $4)
+		VALUES ($1,$2,$3, $4)
 		RETURNING id`
 
-	args := []interface{}{sale.Barcode, sale.Quantity, sale.SaleTime}
+	args := []interface{}{sale.Barcode, sale.Quantity, sale.Price ,sale.SaleTime}
 
 	rows, err := s.DB.Query(query, args...)
 	if err != nil {
@@ -33,6 +33,7 @@ func (s SaleModel) Insert(sale *Sale) (int64, error) {
 	}
 	var id int64
 	defer rows.Close()
+	rows.Next()
 	err = rows.Scan(&id)
 	if err != nil {
 		return -1, err
@@ -83,8 +84,7 @@ func (s SaleModel) GetByQuery(barcode int64, fromTime, toTime time.Time) ([]Sale
 
 	sale := []Sale{}
 
-	args := []interface{}{barcode, fromTime, toTime}
-	rows, err := s.DB.Query(query, args)
+	rows, err := s.DB.Query(query, barcode, fromTime, toTime)
 	if err != nil {
 		return nil, err
 	}
@@ -120,13 +120,12 @@ func (s SaleModel) DeleteByID(id int64) error {
 
 //update/id
 
-func (s SaleModel) Update(sale *Sale) error {
+func (s SaleModel) Update(sale *Sale,id int64) error {
 	query := `
 		UPDATE sale
-		SET barcode = $1, price = $2, quantity = $3, saletime = $4
-		WHERE id = $5,
-		RETURNING id`
-	res, err := s.DB.Exec(query, sale.Barcode, sale.Price, sale.Quantity, sale.SaleTime, sale.ID)
+		SET barcode = $1, price = $2, quantity = $3, sale_time = $4
+		WHERE id = $5`
+	res, err := s.DB.Exec(query, sale.Barcode, sale.Price, sale.Quantity, sale.SaleTime, id)
 	if err != nil {
 		return err
 	}
@@ -135,4 +134,27 @@ func (s SaleModel) Update(sale *Sale) error {
 		return err
 	}
 	return nil
+}
+
+
+func (s SaleModel) GetSalesAmount(barcode int64, fromTime, toTime time.Time)(int64,int64, error){
+	query := ` with data as (select barcode,price, sum(quantity) as total_count, sum(quantity)*price as rev from sale
+	 where sale_time between $1 and $2 and barcode = $3
+	  group by barcode, price) select sum(total_count) as total_quantity, sum(rev) as total_revenue from data 
+		group by barcode;`
+		
+
+		rows, err := s.DB.Query(query, fromTime, toTime, barcode)
+		if err != nil {
+			return -1,-1, err
+		}
+		defer rows.Close()
+		rows.Next()
+		var totalRev,totalQuantity int64
+		err = rows.Scan(&totalRev, &totalQuantity)
+		if err != nil {
+			return -1,-1,err
+		}
+
+		return totalRev,totalQuantity,nil
 }

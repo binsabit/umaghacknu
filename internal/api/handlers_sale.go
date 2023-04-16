@@ -10,7 +10,7 @@ import (
 	"github.com/binsabit/umaghacknu/pkg/helpers"
 )
 
-func (app *application) GetSale(w http.ResponseWriter, r *http.Request) {
+func (app *application) GetSales(w http.ResponseWriter, r *http.Request) {
 	queryValues := r.URL.Query()
 
 	fromTime, err := time.Parse("2006-01-02 15:04:05", queryValues.Get("fromTime"))
@@ -30,7 +30,7 @@ func (app *application) GetSale(w http.ResponseWriter, r *http.Request) {
 	err = helpers.WriteJSON(w, http.StatusOK, sale, nil)
 }
 
-func (app *application) AddSale(w http.ResponseWriter, r *http.Request) {
+func (app *application) AddSales(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Barcode  int64  `json:"barcode"`
 		Price    int64  `json:"price"`
@@ -51,6 +51,7 @@ func (app *application) AddSale(w http.ResponseWriter, r *http.Request) {
 		Quantity: input.Quantity,
 		SaleTime: t,
 	}
+	fmt.Println(input)
 	id, err := app.models.Sale.Insert(&sale)
 
 	if err != nil {
@@ -58,7 +59,7 @@ func (app *application) AddSale(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = helpers.WriteJSON(w, http.StatusCreated, helpers.Enveleope{"id": id}, nil)
+	err = helpers.WriteJSON(w, http.StatusOK, helpers.Enveleope{"id": id}, nil)
 	if err != nil {
 		fmt.Println("Create response error")
 		return
@@ -66,7 +67,7 @@ func (app *application) AddSale(w http.ResponseWriter, r *http.Request) {
 }
 
 //TODO GET
-func (app *application) GetSaleByID(w http.ResponseWriter, r *http.Request) {
+func (app *application) GetSalesByID(w http.ResponseWriter, r *http.Request) {
 	id, err := helpers.ReadIDParam(r)
 	if err != nil {
 		fmt.Println("id param error")
@@ -85,7 +86,7 @@ func (app *application) GetSaleByID(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (app *application) UpdateSaleByID(w http.ResponseWriter, r *http.Request) {
+func (app *application) UpdateSalesByID(w http.ResponseWriter, r *http.Request) {
 	id, err := helpers.ReadIDParam(r)
 	if err != nil {
 		fmt.Println("id param error")
@@ -99,6 +100,7 @@ func (app *application) UpdateSaleByID(w http.ResponseWriter, r *http.Request) {
 		Quantity int    `json:"quantity"`
 		SaleTime string `json:"saleTime"`
 	}
+	
 	t, _ := time.Parse("2006-01-02 15:04:05", input.SaleTime)
 
 	err = helpers.ReadJSON(r, &input)
@@ -113,7 +115,7 @@ func (app *application) UpdateSaleByID(w http.ResponseWriter, r *http.Request) {
 		SaleTime: t,
 	}
 	fmt.Printf("%v", input)
-	err = app.models.Sale.Update(&sale)
+	err = app.models.Sale.Update(&sale,id)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -122,7 +124,7 @@ func (app *application) UpdateSaleByID(w http.ResponseWriter, r *http.Request) {
 }
 
 //TODO DELETION
-func (app *application) DeleteSaleByID(w http.ResponseWriter, r *http.Request) {
+func (app *application) DeleteSalesByID(w http.ResponseWriter, r *http.Request) {
 
 	id, err := helpers.ReadIDParam(r)
 	if err != nil {
@@ -141,4 +143,55 @@ func (app *application) DeleteSaleByID(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 		return
 	}
+}
+
+func (app *application) Tester(w http.ResponseWriter, r *http.Request){
+	queryValues := r.URL.Query()
+	fromTime, _ := time.Parse("2006-01-02 15:04:05", queryValues.Get("fromTime"))
+	toTime, _ := time.Parse("2006-01-02 15:04:05", queryValues.Get("toTime"))
+	barcode, err := strconv.Atoi(queryValues.Get("barcode"))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	res, err := app.models.Supplies.GetSupplyAmount(int64(barcode), fromTime, toTime)
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+
+	totalQuantity,totalRev ,err := app.models.Sale.GetSalesAmount(int64(barcode), fromTime, toTime)
+	
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println(totalRev)
+	totalCost := Solution(res,totalQuantity)
+	totalProfit := totalRev - totalCost 
+	err = helpers.WriteJSON(w, http.StatusOK, helpers.Enveleope{"barcode":barcode,"quantity":totalQuantity,"revenue":totalRev,"netProfit":totalProfit}, nil)
+	if err != nil{
+		fmt.Println(err)
+		return
+	}
+
+}
+
+func Solution(supplies []data.Output, totalQuant int64)int64{
+	fmt.Println(supplies, totalQuant)
+	var totalCost int64 = 0
+	for i := 0; i < len(supplies); i++ {
+		totalQuant = totalQuant - supplies[i].Quantity
+		if   totalQuant >= 0 {
+			totalCost += supplies[i].Quantity * supplies[i].Price
+		}else{
+			totalQuant = totalQuant + supplies[i].Quantity
+			fmt.Println(totalQuant, supplies[i].Price)
+			totalCost += totalQuant * supplies[i].Price
+			break
+		}
+	}
+	return totalCost
 }

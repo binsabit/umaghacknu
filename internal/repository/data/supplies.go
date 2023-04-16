@@ -3,6 +3,7 @@ package data
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -14,6 +15,11 @@ type Supply struct {
 	SupplyTime time.Time `json:"supplyTime"`
 }
 
+type Output struct{
+	Quantity int64
+	Price int64
+}
+
 type SupplyModel struct {
 	DB *sql.DB
 }
@@ -23,10 +29,10 @@ type SupplyModel struct {
 func (s SupplyModel) Insert(supply *Supply) (int64, error) {
 	query := `
 		INSERT INTO supply (barcode, quantity, price, supply_time)
-		VALUES ($1,$2,$3 $4)
+		VALUES ($1,$2,$3, $4)
 		RETURNING id`
 
-	args := []interface{}{supply.Barcode, supply.Quantity, supply.SupplyTime}
+	args := []interface{}{supply.Barcode, supply.Quantity, supply.Price ,supply.SupplyTime}
 
 	rows, err := s.DB.Query(query, args...)
 	if err != nil {
@@ -34,6 +40,7 @@ func (s SupplyModel) Insert(supply *Supply) (int64, error) {
 	}
 	var id int64
 	defer rows.Close()
+	rows.Next()
 	err = rows.Scan(&id)
 	if err != nil {
 		return -1, err
@@ -84,8 +91,8 @@ func (s SupplyModel) GetByQuery(barcode int64, fromTime, toTime time.Time) ([]Su
 
 	supply := []Supply{}
 
-	args := []interface{}{barcode, fromTime, toTime}
-	rows, err := s.DB.Query(query, args)
+	// args := []interface{}{barcode, fromTime, toTime}
+	rows, err := s.DB.Query(query, barcode,fromTime,toTime)
 	if err != nil {
 		return nil, err
 	}
@@ -112,22 +119,21 @@ func (s SupplyModel) GetByQuery(barcode int64, fromTime, toTime time.Time) ([]Su
 //DeleteByID
 func (s SupplyModel) DeleteByID(id int64) error {
 	query := `
-		DELETE supply
+		DELETE from supply
 		WHERE id = $1`
 	_, err := s.DB.Exec(query, id)
-
 	return err
 }
 
 //update/id
 
-func (s SupplyModel) Update(supply *Supply) error {
+func (s SupplyModel) Update(supply *Supply, id int64) (error) {
 	query := `
 		UPDATE supply
-		SET barcode = $1, price = $2, quantity = $3, saletime = $4
-		WHERE id = $5,
-		RETURNING id`
-	res, err := s.DB.Exec(query, supply.Barcode, supply.Price, supply.Quantity, supply.SupplyTime, supply.ID)
+		SET barcode = $1, price = $2, quantity = $3, supply_time = $4
+		WHERE id = $5`
+	fmt.Println(supply, id)
+	res, err := s.DB.Exec(query, supply.Barcode, supply.Price, supply.Quantity, supply.SupplyTime, id)
 	if err != nil {
 		return err
 	}
@@ -136,4 +142,32 @@ func (s SupplyModel) Update(supply *Supply) error {
 		return err
 	}
 	return nil
+}
+
+
+func (s SupplyModel) GetSupplyAmount(barcode int64, fromTime, toTime time.Time)([]Output,error){
+	query := `with data as (select barcode, sum(quantity) as quantity, price, supply_time from supply 
+	where supply_time between $1 and $2 and barcode = $3 
+	group by quantity, price, barcode, supply_time order by supply_time asc) 
+	select quantity, price 
+	from data`
+
+	
+	result := []Output{}
+	rows, err := s.DB.Query(query,fromTime,toTime,barcode)
+	if err != nil{
+		return nil,err
+	}
+	for rows.Next(){
+		var temp Output
+		err = rows.Scan(&temp.Quantity,&temp.Price)
+		if err != nil {
+			return nil, err
+		}
+		// fmt.Println(temp)
+		result = append(result, temp)
+	}
+	// fmt.Println(result)
+
+	return result,nil
 }

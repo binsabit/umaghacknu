@@ -24,7 +24,7 @@ func (app *application) GetSupplies(w http.ResponseWriter, r *http.Request) {
 	supply, err := app.models.Supplies.GetByQuery(int64(barcode), fromTime, toTime)
 
 	if err != nil {
-		fmt.Println("error supply query")
+		fmt.Println(err)
 		return
 	}
 	err = helpers.WriteJSON(w, http.StatusOK, supply, nil)
@@ -58,7 +58,7 @@ func (app *application) AddSupplies(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = helpers.WriteJSON(w, http.StatusCreated, helpers.Enveleope{"id": id}, nil)
+	err = helpers.WriteJSON(w, http.StatusOK, helpers.Enveleope{"id": id}, nil)
 	if err != nil {
 		fmt.Println("Create response error")
 		return
@@ -113,7 +113,7 @@ func (app *application) UpdateSuppliesByID(w http.ResponseWriter, r *http.Reques
 		SupplyTime: t,
 	}
 	fmt.Printf("%v", input)
-	err = app.models.Supplies.Update(&supply)
+	err = app.models.Supplies.Update(&supply,id)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -138,6 +138,30 @@ func (app *application) DeleteSuppliesByID(w http.ResponseWriter, r *http.Reques
 
 	err = helpers.WriteJSON(w, http.StatusOK, nil, nil)
 	if err != nil {
+		fmt.Println(err)
+		return
+	}
+}
+func (app *application) SupplyTest(w http.ResponseWriter, r *http.Request){
+	queryValues := r.URL.Query()
+	fromTime, _ := time.Parse("2006-01-02 15:04:05", queryValues.Get("fromTime"))
+	toTime, _ := time.Parse("2006-01-02 15:04:05", queryValues.Get("toTime"))
+	barcode, err := strconv.Atoi(queryValues.Get("barcode"))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	res, err := app.models.Supplies.GetSupplyAmount(int64(barcode), fromTime, toTime)
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	// fmt.Println(res)
+
+	err = helpers.WriteJSON(w, http.StatusOK, helpers.Enveleope{"": res}, nil)
+	if err != nil{
 		fmt.Println(err)
 		return
 	}

@@ -28,17 +28,28 @@ type application struct {
 func configure() config {
 	var cfg config
 	flag.IntVar(&cfg.port, "port", 4000, "indicate the port that server will be running on")
+	//flag.StringVar(&cfg.db.dsn, "dsn", "postgres://hiidoskd:@localhost:5432/umag", "")
 	flag.Parse()
+	
+	cfg.db.dsn =  "host=localhost port=5432 user=hiidoskd dbname=umag sslmode=disable"
 	return cfg
 }
 
 func StartAndConfigure() {
 	cfg := configure()
 
-	app := application{
-		config: cfg,
+	
+	db, err := openDB(cfg)
+	if err != nil{
+		log.Fatal(err)
 	}
 
+	defer db.Close()
+	app := application{
+		config: cfg,
+		models: data.NewModels(db),
+}
+	
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", app.config.port),
 		Handler:      app.routes(),
